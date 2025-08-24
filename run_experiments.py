@@ -14,10 +14,13 @@ from run_experiment import train_model
 
 #%%
 
-dataset_list = ['physionet','physionet2017','cardiology','ptb','fetal','physionet2016','physionet2020','chapman','chapman_pvc']#,'cipa']
-batch_size_list = [256, 256, 16, 64, 64, 256, 256, 256, 256]#, 512]
-lr_list = [1e-4, 1e-4, 1e-4, 5e-5, 1e-4, 1e-4, 1e-4, 1e-4, 1e-4]#, 1e-4]
-nleads = 12 # 12 | 4
+dataset_list = ['my_ecg']#,'cipa']
+# batch_size_list = [256, 256, 16, 64, 64, 256, 256, 256, 256]#, 512]
+# lr_list = [1e-4, 1e-4, 1e-4, 5e-5, 1e-4, 1e-4, 1e-4, 1e-4, 1e-4]#, 1e-4]
+batch_size_list = [256]#, 512]
+lr_list = [1e-4]#, 1e-4]
+nleads = 1 # 12 | 4
+leads_list = [None]
 if nleads == 12:
     leads_list = [None,None,None,'i','Abdomen 1','i',"['I', 'II', 'III', 'aVL', 'aVR', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6']","['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6']","['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6']"] #'II' for one lead, ['II','V1',etc.] for more leads
 elif nleads == 4:
@@ -121,8 +124,8 @@ def run_configurations(basepath_to_data,phases,trial_to_load_list,trial_to_run_l
                         """ Information for actual training --- trial_to_run == trial_to_load when pretraining so they are the same """
                         leads, batch_size, held_out_lr, class_pair, modalities, fraction = obtain_information(trial_to_run,downstream_dataset,second_dataset,data2leads_dict,data2bs_dict,data2lr_dict,data2classpair_dict)
                         
-                        max_epochs = 400 #hard stop for training
-                        max_seed = 5
+                        max_epochs = 2 #hard stop for training
+                        max_seed = 2
                         seeds = np.arange(max_seed)
                         for seed in seeds:
                             save_path_dir, seed = make_saving_directory_contrastive(phases,downstream_dataset,trial_to_load,trial_to_run,seed,max_seed,downstream_task,embedding_dim,original_leads,input_perturbed,perturbation)
@@ -142,14 +145,20 @@ def run_configurations(basepath_to_data,phases,trial_to_load_list,trial_to_run_l
                             train_model(basepath_to_data,cnn_network_contrastive,second_cnn_network,classification,load_path_dir,save_path_dir,seed,batch_size,held_out_lr,fraction,modalities,leads,saved_weights,phases,original_downstream_dataset,downstream_task,class_pair,input_perturbed,perturbation,trial_to_load=trial_to_load,trial_to_run=trial_to_run,nencoders=nencoders,embedding_dim=embedding_dim,nviews=nviews,labelled_fraction=labelled_fraction,num_epochs=max_epochs)
 
 #%%
-basepath_to_data = '/mnt/SecondaryHDD'
-phases = ['train','val']#['test'] #['train','val'] #['test']
-trial_to_load_list = ['SimCLR','CMSC','CMLC','CMSMLC'] #for loading pretrained weights
-trial_to_run_list =  ['SimCLR','CMSC','CMLC','CMSMLC'] #['Linear','Linear','Linear','Linear'] #['Fine-Tuning','Fine-Tuning','Fine-Tuning','Fine-Tuning'] #['Linear','Linear','Linear','Linear'] #['Fine-Tuning','Fine-Tuning','Fine-Tuning','Fine-Tuning'] #['Fine-Tuning','Fine-Tuning','Fine-Tuning','Fine-Tuning']  #['Linear','Linear','Linear','Linear']  #['Random']#,'Fine-Tuning','Fine-Tuning','Fine-Tuning']#['SimCLR','CMSC','CMLC','CMSMLC'] #current trial to run and perform training # Fine-Tuning | Same as trial_to_load
-embedding_dim_list = [320,256,128,64,32]
-downstream_dataset_list = ['chapman']#,'physionet2020'] #dataset for pretraininng # 'chapman' | 'physionet2020'
+basepath_to_data = r"C:\Users\aleks\Pulpit\ZPI\data"
+phases = ['train','valid']#['test'] #['train','val'] #['test']
+# trial_to_load_list = ['SimCLR','CMSC','CMLC','CMSMLC'] #for loading pretrained weights
+# trial_to_run_list =  ['SimCLR','CMSC','CMLC','CMSMLC'] #['Linear','Linear','Linear','Linear'] #['Fine-Tuning','Fine-Tuning','Fine-Tuning','Fine-Tuning'] #['Linear','Linear','Linear','Linear'] #['Fine-Tuning','Fine-Tuning','Fine-Tuning','Fine-Tuning'] #['Fine-Tuning','Fine-Tuning','Fine-Tuning','Fine-Tuning']  #['Linear','Linear','Linear','Linear']  #['Random']#,'Fine-Tuning','Fine-Tuning','Fine-Tuning']#['SimCLR','CMSC','CMLC','CMSMLC'] #current trial to run and perform training # Fine-Tuning | Same as trial_to_load
+trial_to_load_list = ['SimCLR'] #for loading pretrained weights
+trial_to_run_list =  ['SimCLR'] #['Linear','Linear','Linear','Linear'] #['Fine-Tuning','Fine-Tuning','Fine-Tuning','Fine-Tuning'] #['Linear','Linear','Linear','Linear'] #['Fine-Tuning','Fine-Tuning','Fine-Tuning','Fine-Tuning'] #['Fine-Tuning','Fine-Tuning','Fine-Tuning','Fine-Tuning']  #['Linear','Linear','Linear','Linear']  #['Random']#,'Fine-Tuning','Fine-Tuning','Fine-Tuning']#['SimCLR','CMSC','CMLC','CMSMLC'] #current trial to run and perform training # Fine-Tuning | Same as trial_to_load
+# embedding_dim_list = [320,256,128,64,32]
+embedding_dim_list = [128]
+
+downstream_dataset_list = ['my_ecg']#,'physionet2020'] #dataset for pretraininng # 'chapman' | 'physionet2020'
 second_dataset_list = ['']#physionet2020'] #['physionet2020','cardiology','physionet2017','chapman']#,'physionet2020'] #only used for fine-tuning & linear trials #keep as list of empty strings if pretraining
 labelled_fraction_list = [1]#0.25,0.50,0.75,1.00] #proportion of labelled training data to train on # SHOULD BE 1 for pretraining #[0.25,0.50,0.75,1.00] for finetuning and linear evaluation
 
 if __name__ == '__main__':
     run_configurations(basepath_to_data,phases,trial_to_load_list,trial_to_run_list,embedding_dim_list,downstream_dataset_list,second_dataset_list,labelled_fraction_list)
+
+# %%

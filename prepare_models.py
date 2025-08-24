@@ -26,7 +26,7 @@ def load_initial_model_contrastive(cnn_network,phases,save_path_dir,saved_weight
     print(device)
     """ Inference Without Meta Learning """
     if trial_to_run in ['Linear','Fine-Tuning','Random']:
-        if 'train1' in phases:
+        if 'train' in phases:
             
             if trial_to_run in ['Linear','Fine-Tuning']:
                 model.load_state_dict(torch.load(os.path.join(save_path_dir,saved_weights)))

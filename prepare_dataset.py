@@ -11,6 +11,7 @@ from operator import itemgetter
 import os
 import pickle
 import numpy as np
+import glob
 #import os
 import random
 #from scipy.stats import entropy
@@ -23,7 +24,7 @@ class my_dataset_contrastive(Dataset):
     """
     
     def __init__(self,basepath_to_data,dataset_name,phase,inference,fractions,acquired_items,modalities=['ecg','ppg'],task='contrastive',input_perturbed=False,perturbation='Gaussian',leads='ii',heads='single',cl_scenario=None,class_pair='',trial='CMC',nviews=1):
-        """ This Accounts for 'train1' and 'train2' Phases """
+        """ This Accounts for 'train' and 'train2' Phases """
         if 'train' in phase:
             phase = 'train'
         elif 'val' in phase:
@@ -601,3 +602,142 @@ class my_dataset_contrastive(Dataset):
         
     def __len__(self):
         return len(self.input_array)
+    
+    
+class MyDatasetECG(Dataset):
+    def __init__(self, basepath_to_data, dataset_name, phase, inference, fractions, acquired_items, modalities=['ecg','ppg'], task='contrastive', input_perturbed=False, perturbation='Gaussian', leads='ii', heads='single', cl_scenario=None, class_pair='', trial='CMC', nviews=1):
+        """
+        Custom dataset loader for your ECG .npy data
+        """
+        self.basepath_to_data = basepath_to_data
+        self.dataset_name = dataset_name
+        self.phase = phase
+        self.inference = inference
+        self.fractions = fractions
+        self.acquired_items = acquired_items
+        self.modalities = modalities
+        self.task = task
+        self.input_perturbed = input_perturbed
+        self.perturbation = perturbation
+        self.leads = leads
+        self.heads = heads
+        self.cl_scenario = cl_scenario
+        self.class_pair = class_pair
+        self.trial = trial
+        self.nviews = nviews
+
+        self.samples = []
+        self.pids = []
+        self.indices = []
+        self.rec = 0
+        # Path e.g. data/train/*
+        phase_dir = os.path.join(basepath_to_data, phase)
+        person_dirs = [os.path.join(phase_dir, d) for d in os.listdir(phase_dir) if os.path.isdir(os.path.join(phase_dir, d))]
+        print(f"Found {len(person_dirs)} person directories.")
+        idx = 0
+        for person_dir in person_dirs:
+            pid = os.path.basename(person_dir)
+            ecg_files = glob.glob(os.path.join(person_dir, "ecg", "*.npy"))
+            for fpath in ecg_files:
+                arr = np.load(fpath)  # shape [N,1,1000]
+                print(f"Loaded {fpath} with shape {arr.shape}")
+                for i in range(arr.shape[0]):
+                    frame = torch.tensor(arr[i][..., :-1], dtype=torch.float)
+                    self.samples.append(frame.unsqueeze(0))  # Add batch dimension
+                    self.pids.append(pid)
+                    self.indices.append(idx)
+                    idx += 1
+        self.samples = torch.stack(self.samples)  # [total_samples, 1, 1000]
+
+    def obtain_perturbed_frame(self,frame):
+        """ Apply Sequence of Perturbations to Frame 
+        Args:
+            frame (numpy array): frame containing ECG data
+        Outputs
+            frame (numpy array): perturbed frame based
+        """
+        if self.input_perturbed:
+            if 'Gaussian' in self.perturbation:
+                mult_factor = 1
+                # if self.dataset_name in ['ptb','physionet2020']:
+                #     variance_factor = 0.01*mult_factor
+                # elif self.dataset_name in ['cardiology','chapman']:
+                #     variance_factor = 10*mult_factor
+                # elif self.dataset_name in ['physionet','physionet2017']:
+                #     variance_factor = 100*mult_factor 
+                variance_factor = 0.01 # TODO: find best for larfield
+                gauss_noise = np.random.normal(0,variance_factor,size=(1000))
+                frame = frame + gauss_noise
+            
+            if 'FlipAlongY' in self.perturbation:
+                frame = np.flip(frame)
+            
+            if 'FlipAlongX' in self.perturbation:
+                frame = -frame
+        return frame
+    
+    def normalize_frame(self,frame):
+        return frame
+        if self.dataset_name not in ['cardiology','physionet2017','physionet2016']:# or self.dataset_name != 'physionet2017':# or self.dataset_name != 'cipa':
+            if isinstance(frame,np.ndarray):
+                frame = (frame - np.min(frame))/(np.max(frame) - np.min(frame) + 1e-8)
+            elif isinstance(frame,torch.Tensor):
+                frame = (frame - torch.min(frame))/(torch.max(frame) - torch.min(frame) + 1e-8)
+        return frame
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, index):
+        true_index = self.indices[index]  # original index
+        input_frame = self.samples[index]  # shape [1000]
+        pid = self.pids[index]
+        modality = None
+        dataset = self.task
+        label = None
+
+        # ensure float type
+        if input_frame.dtype != torch.float:
+            input_frame = input_frame.float()
+
+        nsamples = 1000
+        # Prepare frame_views according to trial type
+        if self.trial in ['CMC', 'SimCLR']:
+            # multiple perturbed views
+            frame_views = torch.empty(1, nsamples, self.nviews)
+            for n in range(self.nviews):
+                frame = self.obtain_perturbed_frame(input_frame.numpy())
+                frame = self.normalize_frame(frame)
+                frame = torch.tensor(frame, dtype=torch.float)  # shape [nsamples]
+                frame = frame.squeeze(0)  
+                frame_views[0, :, n] = frame  # assign 1D tensor
+        elif self.trial in ['Linear', 'Fine-Tuning', 'Random']:
+            # single view
+            frame = self.normalize_frame(input_frame)
+            frame_views = frame.unsqueeze(0).unsqueeze(2)  # shape [1, nsamples, 1]
+        else:
+            # default: single view
+            frame_views = input_frame.unsqueeze(0).unsqueeze(2)  # [1, nsamples, 1]
+
+        # for name, x in zip(
+        # ['frame_views', 'label', 'pid', 'modality', 'dataset', 'true_index'],
+        # [frame_views, label, pid, modality, dataset, true_index]
+        #     ):
+        #     print(f"Checking {name}: {x.shape if x is not None else None}")
+        #     if x is None:
+        #         raise ValueError(f"{name} is None at index {index}")
+        
+        # for x in [frame_views, label, pid, modality, dataset, true_index]:
+        #     if x is None:
+        #         # Skip to next sample (cyclically)
+        #         print(self.rec)
+        #         self.rec += 1
+        #         return self.__getitem__((index + 1) % len(self))
+
+        return frame_views, -1,pid, "NONE", dataset, true_index
+
+
+
+
+# Replace reference in prepare_dataloaders.py
+my_dataset_contrastive = MyDatasetECG

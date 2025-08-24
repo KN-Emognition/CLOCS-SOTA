@@ -317,7 +317,7 @@ def obtain_load_path_dir(phases,save_path_dir,trial_to_run,second_dataset,labell
     return load_path_dir, save_path_dir
 
 def make_saving_directory_contrastive(phases,dataset_name,trial_to_load,trial_to_run,seed,max_seed,task,embedding_dim,leads,input_perturbed,perturbation,evaluation=False):
-    base_path = '/mnt/SecondaryHDD/Contrastive Learning Results' 
+    base_path = './Contrastive Learning Results' 
     seed_path = 'seed%i' % int(seed)
     dataset_path = dataset_name#[0] #dataset used for training
     if leads is None:
@@ -354,7 +354,9 @@ def make_dir(save_path_dir,max_seed,task,trial_to_run,second_pass=False,evaluati
     """ Recursive Function to Make Sure I do Not Overwrite Previous Seeds """
     split_save_path_dir = save_path_dir.split('/')
     seed_index = np.where(['seed' in token for token in split_save_path_dir])[0].item()
-    current_seed = int(split_save_path_dir[seed_index].strip('seed'))
+    print(split_save_path_dir[seed_index])
+    split_save_path_dir_at_seed_idx = split_save_path_dir[seed_index]
+    current_seed = int(split_save_path_dir_at_seed_idx.split('seed')[-1])
     try:
         if second_pass == False:
             condition = ('obtain_representation' not in task) and (trial_to_run not in ['Linear','Fine-Tuning'])

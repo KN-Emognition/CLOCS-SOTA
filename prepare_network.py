@@ -28,8 +28,8 @@ s=3 #stride #3
 class cnn_network_contrastive(nn.Module):
     
     """ CNN for Self-Supervision """
-    
-    def __init__(self,dropout_type,p1,p2,p3,nencoders=1,embedding_dim=256,trial='',device=''):
+
+    def __init__(self,dropout_type,p1,p2,p3,nencoders=1,embedding_dim=256,trial='',device='', input_length=1000):
         super(cnn_network_contrastive,self).__init__()
         
         self.embedding_dim = embedding_dim
@@ -52,24 +52,32 @@ class cnn_network_contrastive(nn.Module):
         self.view_modules = nn.ModuleList()
         self.view_linear_modules = nn.ModuleList()
         for n in range(nencoders):
-            self.view_modules.append(nn.Sequential(
-            nn.Conv1d(c1,c2,k,s),
-            nn.BatchNorm1d(c2),
-            nn.ReLU(),
-            nn.MaxPool1d(2),
-            self.dropout1,
-            nn.Conv1d(c2,c3,k,s),
-            nn.BatchNorm1d(c3),
-            nn.ReLU(),
-            nn.MaxPool1d(2),
-            self.dropout2,
-            nn.Conv1d(c3,c4,k,s),
-            nn.BatchNorm1d(c4),
-            nn.ReLU(),
-            nn.MaxPool1d(2),
-            self.dropout3
-            ))
-            self.view_linear_modules.append(nn.Linear(c4*10,self.embedding_dim))
+            conv_seq = nn.Sequential(
+                nn.Conv1d(c1, c2, k, s),
+                nn.BatchNorm1d(c2),
+                nn.ReLU(),
+                nn.MaxPool1d(2),
+                self.dropout1,
+                nn.Conv1d(c2, c3, k, s),
+                nn.BatchNorm1d(c3),
+                nn.ReLU(),
+                nn.MaxPool1d(2),
+                self.dropout2,
+                nn.Conv1d(c3, c4, k, s),
+                nn.BatchNorm1d(c4),
+                nn.ReLU(),
+                nn.MaxPool1d(2),
+                self.dropout3
+            )
+            self.view_modules.append(conv_seq)
+            
+             # Compute flattened size dynamically
+            with torch.no_grad():
+                dummy_input = torch.zeros(1, c1, input_length)  # batch=1
+                dummy_output = conv_seq(dummy_input)
+                flattened_size = dummy_output.numel() // dummy_output.shape[0]
+            
+            self.view_linear_modules.append(nn.Linear(flattened_size, self.embedding_dim))
                         
     def forward(self,x):
         """ Forward Pass on Batch of Inputs 
